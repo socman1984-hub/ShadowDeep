@@ -24,6 +24,7 @@ const G = {
   cam: { x: 0, y: 0, shake: 0 },
   autoTarget: null,
   msgT: 0,
+  modal: false, // a pop-up (tutorial, update prompt) is open and the game is paused
 };
 
 // ---------------------------------------------------------------- Player
@@ -820,6 +821,7 @@ function startGame(fromSave) {
   buildFloor();
   UI.onGameStart();
   saveGame();
+  onboard(!fromSave);
   try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch (e) { /* not supported */ }
   try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (e) { /* not supported */ }
 }
@@ -828,17 +830,23 @@ let lastFrame = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
-  if (G.state === 'play') update(dt);
+  if (G.state === 'play' && !G.modal) update(dt);
   if (G.dungeon) render();
   if (G.player) UI.update();
   requestAnimationFrame(frame);
 }
 
-window.addEventListener('load', () => {
+function boot() {
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
   Input.init();
   UI.init();
+  Modal.init();
+  Updater.init();
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
   requestAnimationFrame(frame);
-});
+}
+
+// Scripts are added by the loader in index.html, so the page may already be loaded by now.
+if (document.readyState === 'complete') boot();
+else window.addEventListener('load', boot);

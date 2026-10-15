@@ -1,6 +1,6 @@
 'use strict';
 // Touch joystick + hold-to-cast buttons, with keyboard fallback for desktop testing.
-//   Keyboard: WASD/arrows move, Space/J slash, 1-4 spells, Q potion, C/K/I/F/U panels, Esc close.
+//   Keyboard: WASD/arrows move, Space/J slash, 1-4 spells, Q potion, C/K/I/F/U/H panels, Esc close.
 
 const KEY_SKILLS = { ' ': 'slash', j: 'slash', 1: 'fireball', 2: 'frostnova', 3: 'chain', 4: 'whirlwind' };
 const JOY_RADIUS = 55;
@@ -49,6 +49,7 @@ const Input = {
 
     window.addEventListener('keydown', e => {
       const k = e.key.toLowerCase();
+      if (Modal.open) return;
       this.keys[k] = true;
       if (k === ' ') e.preventDefault();
       if (k === 'q') this.potionQueued = true;
@@ -57,6 +58,7 @@ const Input = {
       if (k === 'i') UI.togglePanel('inventory');
       if (k === 'f') UI.togglePanel('forge');
       if (k === 'u') UI.togglePanel('upgrades');
+      if (k === 'h') UI.togglePanel('help');
       if (k === 'escape') UI.closePanel();
     });
     window.addEventListener('keyup', e => { this.keys[e.key.toLowerCase()] = false; });

@@ -14,7 +14,7 @@ const UI = {
     const $ = id => document.getElementById(id);
     for (const id of ['hud', 'hpFill', 'hpText', 'mpFill', 'mpText', 'xpFill', 'lvlText', 'floorText', 'goldText', 'minimap',
       'actions', 'banner', 'bannerTitle', 'bannerSub', 'toast', 'panel', 'panelBody', 'title', 'death', 'attrBadge', 'bagBadge',
-      'continueBtn', 'newBtn', 'saveInfo', 'respawnBtn']) this.els[id] = $(id);
+      'continueBtn', 'newBtn', 'saveInfo', 'respawnBtn', 'helpBadge']) this.els[id] = $(id);
     this.mm = this.els.minimap.getContext('2d');
 
     // Action buttons: big Slash button plus spell buttons arranged in an arc.
@@ -49,6 +49,9 @@ const UI = {
       startGame(false);
     });
     this.els.respawnBtn.addEventListener('click', () => { this.els.death.classList.add('hidden'); respawn(); });
+    $('titleVer').textContent = `v${GAME_VERSION}`;
+    $('newsBtn').addEventListener('click', () => showWhatsNew(null));
+    $('howBtn').addEventListener('click', () => Tutorial.start());
   },
 
   onGameStart() {
@@ -79,6 +82,7 @@ const UI = {
     this.set('pot', 'text', String(p.potions), E.potCount);
     this.set('attrB', 'text', p.points ? String(p.points) : '', E.attrBadge);
     this.set('bagB', 'text', p.bag.length ? String(p.bag.length) : '', E.bagBadge);
+    this.set('helpB', 'text', Updater.latest ? '!' : '', E.helpBadge);
 
     for (const id of SKILL_ORDER) {
       const b = E['act_' + id], sk = SKILLS[id], st = p.skills[id];
@@ -183,6 +187,7 @@ const UI = {
       inventory: () => this.inventoryHTML(),
       forge: () => this.forgeHTML(),
       upgrades: () => this.upgradesHTML(),
+      help: () => Help.html(),
     };
     const body = this.els.panelBody, scroll = body.scrollTop;
     body.innerHTML = views[this.tab]();
@@ -493,6 +498,7 @@ const UI = {
     const b = e.target.closest('[data-action]');
     if (!b || b.disabled) return;
     const p = G.player, act = b.dataset.action, key = b.dataset.key;
+    if (act === 'checkUpdate' || act === 'doUpdate' || act === 'replayTutorial') { Help.onAction(act); return; }
     switch (act) {
       case 'attr':
         if (p.points > 0) {

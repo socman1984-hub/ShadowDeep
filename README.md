@@ -24,6 +24,13 @@ To play on your phone, connect it to the same Wi-Fi and open `http://<your-compu
 
 **Keyboard:** WASD to move · Space to slash · 1–4 for spells · Q for a potion · C / K / I / F / U to open the menus
 
+## Releasing a new version
+1. In `js/version.js`, bump `GAME_VERSION` (for example `1.3.0` → `1.4.0`).
+2. Add an entry at the top of `RELEASE_NOTES` describing the changes.
+3. Commit and deploy.
+
+Running games check `js/version.js` every 5 minutes, and whenever the player returns to the app. When the version is newer, the game saves and offers a reload. The page loads all scripts with `?v=<version>`, so a reload always fetches fresh code. Players see the new release notes in a "What's new" pop-up, and all notes are always available under ❓ Help.
+
 ## Project layout
 | File | Purpose |
 |---|---|
@@ -34,3 +41,5 @@ To play on your phone, connect it to the same Wi-Fi and open `http://<your-compu
 | `js/render.js` | World rendering, effects, lighting |
 | `js/ui.js` | HUD and menus (Hero, Skills, Gear, Forge, Upgrades) |
 | `js/input.js` | Touch joystick, buttons, keyboard |
+| `js/version.js` | Game version and release notes |
+| `js/help.js` | Update checker, tutorial, "What's new", Help tab |

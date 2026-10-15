@@ -169,7 +169,7 @@ h3 { margin: 4px 0 10px; font-size: 15px; color: #e0b465; font-weight: normal; l
 
 /* ---------------------------------------------------------------- Gear, Forge, Upgrades */
 .tab { font-size: 14px; white-space: nowrap; }
-@media (max-width: 640px) { .tab span { display: none; } .tab { font-size: 20px; } }
+@media (max-width: 780px) { .tab span { display: none; } .tab { font-size: 20px; } }
 #doll { width: 100%; height: 150px; background: radial-gradient(ellipse at 50% 90%, #2a1f15, #0f0b08 70%); border: 1px solid #3a2c1e; border-radius: 6px; }
 .eqGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .eqSlot { padding: 4px 6px; gap: 6px; min-width: 0; }
@@ -246,3 +246,49 @@ h3 { margin: 4px 0 10px; font-size: 15px; color: #e0b465; font-weight: normal; l
   .eqCol { width: 100%; }
 }
 .cardTitle .price { text-transform: none; letter-spacing: 0; }
+
+/* ---------------------------------------------------------------- Modal pop-ups (tutorial, updates, what's new) */
+#modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.7);
+  padding: calc(10px + var(--safe-t)) calc(10px + var(--safe-r)) calc(10px + var(--safe-b)) calc(10px + var(--safe-l)); }
+#modalBox { width: min(440px, 100%); max-height: 100%; display: flex; flex-direction: column; padding: 16px 18px; text-align: center;
+  background: #17110c; border: 2px solid #b08a4a; border-radius: 12px; box-shadow: 0 10px 50px #000; overflow: hidden; }
+#modalBox h2 { margin: 2px 0 8px; font-size: 22px; color: #ffd84a; font-weight: normal; letter-spacing: 1px; }
+#modalBox p { margin: 6px 0; font-size: 15px; line-height: 1.45; }
+.mIcon { font-size: 40px; line-height: 1.1; }
+.mBtns { display: flex; gap: 8px; margin-top: 14px; }
+.mBtns button { flex: 1; min-height: 46px; font-size: 16px; border-radius: 7px; background: #2a1f15; border: 1px solid #7a6040; }
+.mBtns button.primary { flex: 1.5; background: #2f5a24; border-color: #5dff7a; font-weight: bold; }
+.mScroll { overflow-y: auto; text-align: left; touch-action: pan-y; min-height: 0; }
+.dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: #3a2c1e; }
+.dots i.on { background: #ffd84a; }
+@media (max-height: 420px) {
+  #modalBox { padding: 10px 14px; }
+  .mIcon { font-size: 30px; }
+  #modalBox h2 { font-size: 19px; margin-bottom: 4px; }
+  #modalBox p { font-size: 14px; margin: 4px 0; }
+  .mBtns { margin-top: 8px; }
+}
+.red { color: #ff5a4a; }
+.rc { color: #d6d6d6; } .rm { color: #6b8cff; } .rr { color: #ffd84a; } .rl { color: #ff8c1a; }
+
+/* ---------------------------------------------------------------- Help tab and release notes */
+.helpTop { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; background: #211810; border: 1px solid #3a2c1e; border-radius: 6px; }
+.gameName { font-size: 18px; color: #e0b465; letter-spacing: 1px; }
+.ver { font-size: 14px; color: #ffd84a; }
+.small { font-size: 12px; margin-top: 2px; }
+.helpBtns { display: flex; gap: 6px; flex-wrap: wrap; }
+.helpBtns button { min-height: 40px; padding: 6px 12px; font-size: 13px; border-radius: 6px; background: #2a1f15; border: 1px solid #7a6040; }
+.helpBtns button.primary { background: #2f5a24; border-color: #5dff7a; }
+.howto details { margin-bottom: 5px; background: #211810; border: 1px solid #3a2c1e; border-radius: 6px; }
+.howto summary { padding: 10px 12px; font-size: 15px; cursor: pointer; }
+.howto details > div { padding: 0 12px 10px; font-size: 13px; line-height: 1.5; }
+.release { margin-bottom: 10px; padding: 8px 12px; background: #0f0b08; border: 1px solid #2a2017; border-radius: 6px; font-size: 13px; }
+.relHead { margin-bottom: 2px; }
+.relHead b { color: #ffd84a; }
+.release ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.45; }
+
+/* ---------------------------------------------------------------- Title screen version */
+.titleVer { margin-top: 10px; font-size: 13px; color: #8d826d; }
+button.link { background: none; border: none; padding: 4px; color: #e0b465; text-decoration: underline; font-size: 13px; }
+button.big.small { min-width: 180px; padding: 8px 18px; font-size: 15px; }

@@ -10,7 +10,10 @@
   <title>Shadowdeep</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <!-- The stylesheet is added by the loader at the bottom, tagged with the game version. -->
+  <style>html.loading body { visibility: hidden; } body { background: #050404; }</style>
+  <script>document.documentElement.classList.add('loading');</script>
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -30,6 +33,7 @@
         <button class="menuBtn" data-open="inventory">🎒<span class="badge" id="bagBadge"></span></button>
         <button class="menuBtn" data-open="forge">⚒️</button>
         <button class="menuBtn" data-open="upgrades">⭐</button>
+        <button class="menuBtn" data-open="help">❓<span class="badge" id="helpBadge"></span></button>
       </div>
     </div>
     <div id="joyZone"></div>
@@ -47,6 +51,7 @@
         <button class="tab" data-tab="inventory">🎒<span> Gear</span></button>
         <button class="tab" data-tab="forge">⚒️<span> Forge</span></button>
         <button class="tab" data-tab="upgrades">⭐<span> Upgrades</span></button>
+        <button class="tab" data-tab="help">❓<span> Help</span></button>
         <button id="closePanel" aria-label="Close">✕</button>
       </div>
       <div id="panelBody"></div>
@@ -58,10 +63,14 @@
     <p class="sub">Descend. Slay. Grow stronger.</p>
     <button id="continueBtn" class="big hidden">Continue <small id="saveInfo"></small></button>
     <button id="newBtn" class="big">New Game</button>
+    <button id="howBtn" class="big small">How to Play</button>
     <p class="help">Left side: drag to move · Right side: hold buttons to attack &amp; cast<br>
       Best in landscape. Add to Home Screen for fullscreen.<br>
-      <span class="dim">Keyboard: WASD move · Space slash · 1–4 spells · Q potion · C / K / I / F / U menus</span></p>
+      <span class="dim">Keyboard: WASD move · Space slash · 1–4 spells · Q potion · C / K / I / F / U / H menus</span></p>
+    <div class="titleVer"><span id="titleVer"></span> · <button id="newsBtn" class="link">What's new</button></div>
   </div>
+
+  <div id="modal" class="hidden"><div id="modalBox"></div></div>
 
   <div id="death" class="overlay hidden">
     <h1 class="red">You Have Died</h1>
@@ -69,13 +78,30 @@
     <button id="respawnBtn" class="big">Respawn</button>
   </div>
 
-  <script src="js/util.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/map.js"></script>
-  <script src="js/input.js"></script>
-  <script src="js/characters.js"></script>
-  <script src="js/render.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/game.js"></script>
+  <script>
+    // Loads the stylesheet and scripts tagged with the current game version, so a phone never
+    // keeps running stale cached code after an update.
+    (function () {
+      var files = ['version', 'util', 'data', 'map', 'input', 'characters', 'render', 'ui', 'help', 'game'];
+      function load(v) {
+        var q = v ? '?v=' + encodeURIComponent(v) : '';
+        var css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'css/style.css' + q;
+        css.onload = css.onerror = function () { document.documentElement.classList.remove('loading'); };
+        document.head.appendChild(css);
+        files.forEach(function (f) {
+          var s = document.createElement('script');
+          s.src = 'js/' + f + '.js' + q;
+          s.async = false; // keep execution order
+          document.body.appendChild(s);
+        });
+      }
+      fetch('js/version.js?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.text(); })
+        .then(function (t) { var m = t.match(/GAME_VERSION\s*=\s*'([^']+)'/); load(m ? m[1] : String(Date.now())); })
+        .catch(function () { load(''); });
+    })();
+  </script>
 </body>
 </html>
