@@ -184,7 +184,9 @@ const UI = {
       forge: () => this.forgeHTML(),
       upgrades: () => this.upgradesHTML(),
     };
-    this.els.panelBody.innerHTML = views[this.tab]();
+    const body = this.els.panelBody, scroll = body.scrollTop;
+    body.innerHTML = views[this.tab]();
+    body.scrollTop = scroll;
     if (this.tab === 'inventory') this.drawDoll();
   },
 
@@ -276,7 +278,7 @@ const UI = {
       <div class="inv">
         <div class="eqCol"><canvas id="doll"></canvas><div class="eqGrid">${eq}</div></div>
         <div class="bagCol">
-          <div class="bagHead">Bag ${p.bag.length}/${size} · 🧪 ${p.potions}</div>
+          <div class="bagHead">Bag ${p.bag.length}/${size} · 🧪 ${p.potions} <span class="hint">· tap an item to equip it</span></div>
           <div class="bagGrid">${cells}</div>
           <div class="invBtns">
             <button data-action="buyPotion" ${p.gold >= price ? '' : 'disabled'}>Buy Potion (${price}g)</button>
@@ -284,8 +286,8 @@ const UI = {
           </div>
           ${this.matsHTML()}
         </div>
-        <div class="detail">${this.detailHTML()}</div>
-      </div>`;
+      </div>
+      ${this.gearSheetHTML()}`;
   },
 
   drawDoll() {
@@ -341,20 +343,47 @@ const UI = {
     return `<div class="card diff"><div class="cardTitle">If equipped</div>${out.join('') || '<div class="dim">No change</div>'}</div>`;
   },
 
-  detailHTML() {
+  // A pop-up card for one item. The action buttons sit right under the name so they
+  // are always visible on a phone; the details below scroll if they don't fit.
+  sheetHTML(it, buttons, body, extra = '') {
+    const R = RARITIES[it.rarity];
+    return `<div class="sheetBack" data-action="closeSheet"></div>
+      <div class="sheet r-${it.rarity}">
+        <div class="sheetHead">
+          <span class="sheetIcon">${itemIcon(it)}</span>
+          <div class="sheetTitle">
+            <div class="iName" style="color:${R.color}">${itemName(it)}</div>
+            <div class="iSub">${R.label} ${it.baseName} · ${SLOT_LABEL[it.slot]} · iLvl ${it.ilvl}${it.up ? ` · +${it.up}` : ''}</div>
+          </div>
+          <button class="sheetX" data-action="closeSheet" aria-label="Close">✕</button>
+        </div>
+        <div class="sheetBtns">${buttons}</div>
+        ${extra}
+        <div class="sheetBody">${body}</div>
+      </div>`;
+  },
+
+  statLines(it) {
+    const lines = itemLines(it).map(l => `<div class="${l.base ? 'base' : 'aff'}">${l.text}</div>`).join('');
+    return `<div class="card"><div class="cardTitle">Stats</div>${lines || '<div class="aff dim">No bonuses</div>'}</div>`;
+  },
+
+  gearSheetHTML() {
     const p = G.player, sel = this.selected;
-    if (!sel) return '<div class="dim center">Tap an item to inspect it.<br>Equipped gear shows on your hero.</div>';
+    if (!sel) return '';
     if (sel.from === 'equip') {
       const it = p.equip[sel.key];
-      if (!it) return `<div class="dim center">No ${SLOT_LABEL[sel.key].toLowerCase()} equipped.<br>Find one in the dungeon!</div>`;
-      return `${this.itemCard(it, 'Equipped')}<div class="detBtns"><button data-action="toForge">⚒️ Forge</button><button data-action="unequip">Unequip</button></div>`;
+      if (!it) return '';
+      return this.sheetHTML(it,
+        `<button data-action="unequip">Unequip</button><button data-action="toForge">⚒️ Forge</button>`,
+        this.statLines(it));
     }
     const it = p.bag[sel.key];
     if (!it) return '';
     const cur = p.equip[it.slot];
-    return `${this.itemCard(it)}${this.diffHTML(it)}
-      <div class="detBtns"><button class="primary" data-action="equip">Equip</button><button data-action="salvage">Salvage</button><button data-action="sell">Sell ${itemValue(it)}g</button><button data-action="toForge">⚒️</button></div>
-      ${cur ? this.itemCard(cur, 'Currently equipped') : ''}`;
+    return this.sheetHTML(it,
+      `<button class="primary" data-action="equip">Equip</button><button data-action="salvage">Salvage</button><button data-action="sell">Sell ${itemValue(it)}g</button><button data-action="toForge">⚒️</button>`,
+      `<div class="sheetCols">${this.statLines(it)}${this.diffHTML(it)}</div>${cur ? this.itemCard(cur, 'Currently equipped') : ''}`);
   },
 
   // ---------------------------------------------------------------- Forge tab
@@ -392,7 +421,7 @@ const UI = {
       ...SLOTS.filter(s => p.equip[s]).map(s => ({ from: 'equip', key: s, it: p.equip[s] })),
       ...p.bag.map((it, i) => ({ from: 'bag', key: i, it })),
     ];
-    const sel = this.forgeSel;
+    const sel = null;
     const rows = list.map(({ from, key, it }) => {
       const on = sel && sel.from === from && sel.key === key;
       return `<div class="fRow ${on ? 'sel' : ''}" data-action="fsel" data-from="${from}" data-key="${key}">
@@ -400,32 +429,34 @@ const UI = {
       </div>`;
     }).join('');
 
-    const it = this.getItem(sel);
-    let pane = '<div class="dim center">Pick an item to upgrade, enchant or salvage.<br><br>🔩 Iron Scrap comes from salvaging and enemies.<br>✨ Arcane Dust from rares and chests.<br>💠 Ember Shards from legendaries and boss chests.</div>';
-    if (it) {
-      const up = it.up || 0;
-      let upgrade = '<div class="dim">Maximum upgrade reached.</div>';
-      if (up < MAX_UPGRADE) {
-        const next = { ...it, up: up + 1 };
-        const before = itemLines(it), after = itemLines(next);
-        const cmp = before.map((l, i) => `<div>${l.text} <span class="arrow">→</span> <span class="up">${after[i].text}</span></div>`).join('');
-        const cost = upgradeCost(it);
-        upgrade = `<div class="cmp">${cmp}</div>
-          <div class="forgeAct"><span>${this.costHTML(cost)}</span><button class="primary" data-action="upgrade" ${this.canAfford(cost) ? '' : 'disabled'}>Upgrade to +${up + 1}</button></div>`;
-      }
-      const ecost = enchantCost(it);
-      const affs = itemLines(it).filter(l => l.key);
-      const enchant = affs.length
-        ? `${affs.map(l => `<div class="ench"><span class="aff">${l.text}</span><button data-action="enchant" data-aff="${l.key}" ${this.canAfford(ecost) ? '' : 'disabled'}>Reroll</button></div>`).join('')}
-           <div class="hint">Each reroll costs ${this.costHTML(ecost)} and replaces that bonus with a random new one.</div>`
-        : '<div class="dim">Common items have no bonuses to enchant.</div>';
-      pane = `${this.itemCard(it)}
-        <h3>⚒️ Upgrade <span class="hint">+12% to all stats per level, up to +${MAX_UPGRADE}</span></h3>${upgrade}
-        <h3>✨ Enchant</h3>${enchant}
-        ${sel.from === 'bag' ? '<h3>🔩 Salvage</h3><div class="forgeAct"><span class="hint">Break it down into crafting materials.</span><button data-action="fsalvage">Salvage</button></div>' : ''}`;
-    }
     return `<div class="forge">${this.matsHTML()}
-      <div class="forgeCols"><div class="forgeList">${rows || '<div class="dim center">No items.</div>'}</div><div class="forgePane">${pane}</div></div></div>`;
+      <p class="tip">Tap an item to upgrade, enchant or salvage it. 🔩 Scrap comes from salvaging and enemies, ✨ Dust from rares and chests, 💠 Shards from legendaries and boss chests.</p>
+      <div class="forgeList">${rows || '<div class="dim center">No items.</div>'}</div></div>
+      ${this.forgeSheetHTML()}`;
+  },
+
+  forgeSheetHTML() {
+    const sel = this.forgeSel, it = this.getItem(sel);
+    if (!it) return '';
+    const up = it.up || 0;
+    let buttons = '', costLine = '', upgrade = '';
+    if (up < MAX_UPGRADE) {
+      const cost = upgradeCost(it);
+      buttons += `<button class="primary" data-action="upgrade" ${this.canAfford(cost) ? '' : 'disabled'}>⚒️ Upgrade to +${up + 1}</button>`;
+      costLine = `<div class="sheetCost">Upgrade cost: ${this.costHTML(cost)}</div>`;
+      const before = itemLines(it), after = itemLines({ ...it, up: up + 1 });
+      upgrade = `<div class="card"><div class="cardTitle">Upgrade +${up + 1} · +12% to all stats</div>${before.map((l, i) => `<div>${l.text} <span class="arrow">→</span> <span class="up">${after[i].text}</span></div>`).join('')}</div>`;
+    } else {
+      upgrade = `<div class="card">${this.statLines(it)}<div class="dim">Maximum upgrade (+${MAX_UPGRADE}) reached.</div></div>`;
+    }
+    if (sel.from === 'bag') buttons += '<button data-action="fsalvage">🔩 Salvage</button>';
+    const ecost = enchantCost(it);
+    const affs = itemLines(it).filter(l => l.key);
+    const enchant = affs.length
+      ? `<div class="card"><div class="cardTitle">✨ Enchant · reroll one bonus for ${this.costHTML(ecost)}</div>
+          ${affs.map(l => `<div class="ench"><span class="aff">${l.text}</span><button data-action="enchant" data-aff="${l.key}" ${this.canAfford(ecost) ? '' : 'disabled'}>Reroll</button></div>`).join('')}</div>`
+      : '<div class="card dim">Common items have no bonuses to enchant.</div>';
+    return this.sheetHTML(it, buttons, upgrade + enchant, costLine);
   },
 
   // ---------------------------------------------------------------- Upgrades tab
@@ -473,14 +504,19 @@ const UI = {
         }
         break;
       case 'selBag': this.selected = { from: 'bag', key: +key }; break;
-      case 'selEquip': this.selected = { from: 'equip', key }; break;
+      case 'selEquip':
+        if (!p.equip[key]) { this.toast(`No ${SLOT_LABEL[key].toLowerCase()} equipped yet — find one in the dungeon!`); return; }
+        this.selected = { from: 'equip', key };
+        break;
+      case 'closeSheet': this.selected = null; this.forgeSel = null; break;
       case 'equip': {
         const it = p.bag[this.selected.key];
         const cur = p.equip[it.slot];
         p.equip[it.slot] = it;
         if (cur) p.bag[this.selected.key] = cur; else p.bag.splice(this.selected.key, 1);
         recalcStats(p);
-        this.selected = { from: 'equip', key: it.slot };
+        this.selected = null;
+        this.toast(`Equipped ${itemName(it)}`);
         break;
       }
       case 'unequip': {
