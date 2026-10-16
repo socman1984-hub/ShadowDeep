@@ -4,9 +4,24 @@
 //   2. add an entry at the top of RELEASE_NOTES
 // Running games poll this file and offer a reload when GAME_VERSION changes.
 
-const GAME_VERSION = '1.3.0';
+const GAME_VERSION = '1.4.0';
 
 const RELEASE_NOTES = [
+  {
+    version: '1.4.0',
+    date: '2026-10-15',
+    notes: [
+      'All-new look: textured stone floors and brick walls in every area, plus stone pillars, banners, chains, candles, glowing mushrooms, ice crystals and lava cracks.',
+      'More atmosphere: each area has its own tinted darkness and drifting dust, spores, snow or embers.',
+      'Breakable barrels, crates and urns. Smash them for gold and potions!',
+      'Better spell effects: Fireball leaves a comet trail and a scorch mark, Frost Nova bursts into ice shards, and Chain Lightning forks. Hits now spark and splatter.',
+      'Polished health and mana bars and buttons.',
+      'Balance overhaul: enemies, gear and your hero now grow together, so the game stays challenging deep into the dungeon, and bosses are real fights.',
+      'Your weapon now powers both melee and spells. Strength, Intellect and Vitality give % bonuses, and each level adds 4% damage.',
+      'Chain Lightning loses 20% damage per jump. Whirlwind and Frost Nova are stronger.',
+      'Armor stays useful on every floor. Weapons drop more often, and every boss drops one. Legendaries are rarer and more special.',
+    ],
+  },
   {
     version: '1.3.0',
     date: '2026-10-14',

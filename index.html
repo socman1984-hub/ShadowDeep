@@ -82,7 +82,7 @@
     // Loads the stylesheet and scripts tagged with the current game version, so a phone never
     // keeps running stale cached code after an update.
     (function () {
-      var files = ['version', 'util', 'data', 'map', 'input', 'characters', 'render', 'ui', 'help', 'game'];
+      var files = ['version', 'util', 'data', 'map', 'input', 'characters', 'textures', 'render', 'ui', 'help', 'game'];
       function load(v) {
         var q = v ? '?v=' + encodeURIComponent(v) : '';
         var css = document.createElement('link');
@@ -99,7 +99,12 @@
       }
       fetch('js/version.js?t=' + Date.now(), { cache: 'no-store' })
         .then(function (r) { return r.text(); })
-        .then(function (t) { var m = t.match(/GAME_VERSION\s*=\s*'([^']+)'/); load(m ? m[1] : String(Date.now())); })
+        .then(function (t) {
+          var m = t.match(/GAME_VERSION\s*=\s*'([^']+)'/);
+          // On this computer (localhost) always load fresh files, so edits show up without bumping the version.
+          var dev = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+          load((m ? m[1] : '') + (dev || !m ? '-' + Date.now() : ''));
+        })
         .catch(function () { load(''); });
     })();
   </script>

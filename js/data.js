@@ -15,7 +15,7 @@ const SKILL_ORDER = ['slash', 'fireball', 'frostnova', 'chain', 'whirlwind'];
 const SKILLS = {
   slash: {
     name: 'Slash', icon: '⚔️', school: 'Melee', unlock: 1, color: '#f1e6c8', xpPerHit: 0.6,
-    mult: l => 1 + 0.1 * (l - 1),
+    mult: l => 1 + 0.08 * (l - 1),
     range: l => 64 + 2 * l,
     cost: () => 0,
     cd: () => 0.42,
@@ -23,15 +23,15 @@ const SKILLS = {
   },
   fireball: {
     name: 'Fireball', icon: '🔥', school: 'Fire', unlock: 1, color: '#ff9a3c', xpPerHit: 1,
-    mult: l => 1.5 + 0.15 * (l - 1),
+    mult: l => 1.4 + 0.1 * (l - 1),
     radius: l => 44 + 3 * l,
-    cost: l => Math.round(7 + 0.6 * l),
+    cost: l => Math.round(8 + 0.5 * l),
     cd: () => 0.55,
     desc(l) { return `Hurl a fireball that explodes for ${pctf(this.mult(l))} spell damage in a ${this.radius(l)} radius.`; },
   },
   frostnova: {
     name: 'Frost Nova', icon: '❄️', school: 'Cold', unlock: 3, color: '#8fd8ff', xpPerHit: 1,
-    mult: l => 0.8 + 0.1 * (l - 1),
+    mult: l => 1.0 + 0.09 * (l - 1),
     radius: l => 140 + 6 * l,
     slow: l => +(2 + 0.15 * l).toFixed(1),
     cost: l => 14 + l,
@@ -40,47 +40,68 @@ const SKILLS = {
   },
   chain: {
     name: 'Chain Lightning', icon: '⚡', school: 'Lightning', unlock: 5, color: '#bfe3ff', xpPerHit: 0.7,
-    mult: l => 1.0 + 0.12 * (l - 1),
-    jumps: l => 2 + Math.ceil(l / 3),
-    cost: l => Math.round(10 + 0.8 * l),
-    cd: () => 0.9,
-    desc(l) { return `Lightning arcs between ${this.jumps(l)} enemies for ${pctf(this.mult(l))} spell damage each.`; },
+    mult: l => 0.8 + 0.06 * (l - 1),
+    jumps: l => 2 + Math.floor(l / 4),
+    falloff: 0.8, // each jump deals 80% of the previous one
+    cost: l => Math.round(11 + 0.8 * l),
+    cd: () => 1.0,
+    desc(l) { return `Lightning strikes for ${pctf(this.mult(l))} spell damage, then arcs to ${this.jumps(l) - 1} more enemies, losing 20% per jump.`; },
   },
   whirlwind: {
     name: 'Whirlwind', icon: '🌀', school: 'Melee', unlock: 8, color: '#e0e0e0', xpPerHit: 0.35,
-    mult: l => 0.55 + 0.06 * (l - 1),
+    mult: l => 0.65 + 0.05 * (l - 1),
     duration: () => 1.6,
-    radius: () => 95,
-    cost: l => 18 + l,
-    cd: l => Math.max(3, +(6 - 0.15 * l).toFixed(2)),
+    radius: () => 100,
+    cost: l => 15 + l,
+    cd: l => Math.max(2.5, +(4.5 - 0.1 * l).toFixed(2)),
     desc(l) { return `Spin for 1.6s, hitting everything nearby 4x per second for ${pctf(this.mult(l))} weapon damage.`; },
   },
 };
 
 const skillXpReq = l => Math.floor(14 * Math.pow(l, 1.5));
-const playerXpReq = l => Math.floor(60 * Math.pow(l, 1.6));
+const playerXpReq = l => Math.floor(60 * Math.pow(l, 1.75));
 
 // ---------------------------------------------------------------- Enemies
 const ENEMIES = {
-  skeleton: { name: 'Skeleton', hp: 30, dmg: 6, speed: 88, r: 15, xp: 12, kind: 'melee', reach: 14, atkCd: 1.2, wind: 0.3, minFloor: 1, weight: 10 },
-  bat:      { name: 'Blood Bat', hp: 15, dmg: 4, speed: 150, r: 11, xp: 8, kind: 'melee', reach: 10, atkCd: 0.9, wind: 0.2, minFloor: 1, weight: 6 },
-  zombie:   { name: 'Ghoul', hp: 60, dmg: 11, speed: 55, r: 18, xp: 20, kind: 'melee', reach: 16, atkCd: 1.6, wind: 0.45, minFloor: 2, weight: 7 },
-  cultist:  { name: 'Cultist', hp: 24, dmg: 7, speed: 72, r: 14, xp: 18, kind: 'ranged', range: 290, projSpeed: 250, atkCd: 1.9, wind: 0.45, minFloor: 3, weight: 5 },
-  brute:    { name: 'Gravelord', hp: 650, dmg: 20, speed: 80, r: 30, xp: 260, kind: 'melee', reach: 22, atkCd: 1.5, wind: 0.5, boss: true },
+  skeleton: { name: 'Skeleton', hp: 28, dmg: 7, speed: 88, r: 15, xp: 12, kind: 'melee', reach: 14, atkCd: 1.2, wind: 0.3, minFloor: 1, weight: 10 },
+  bat:      { name: 'Blood Bat', hp: 14, dmg: 5, speed: 150, r: 11, xp: 8, kind: 'melee', reach: 10, atkCd: 0.9, wind: 0.2, minFloor: 1, weight: 6 },
+  zombie:   { name: 'Ghoul', hp: 55, dmg: 13, speed: 55, r: 18, xp: 20, kind: 'melee', reach: 16, atkCd: 1.6, wind: 0.45, minFloor: 2, weight: 7 },
+  cultist:  { name: 'Cultist', hp: 22, dmg: 9, speed: 72, r: 14, xp: 18, kind: 'ranged', range: 290, projSpeed: 250, atkCd: 1.9, wind: 0.45, minFloor: 3, weight: 5 },
+  brute:    { name: 'Gravelord', hp: 1500, dmg: 24, speed: 80, r: 30, xp: 260, kind: 'melee', reach: 22, atkCd: 1.5, wind: 0.5, boss: true },
 };
 
+// Enemies grow ~16.5%/floor; gear grows ~12%/item level (itemScale). The gap is what
+// leveling, the Forge and permanent upgrades are for.
 const enemyScale = f => ({
-  hp: Math.pow(1.2, f - 1),
-  dmg: Math.pow(1.15, f - 1),
-  xp: Math.pow(1.17, f - 1),
+  hp: Math.pow(1.165, f - 1),
+  dmg: Math.pow(1.145, f - 1),
+  xp: Math.pow(1.1, f - 1),
 });
+const itemScale = il => Math.pow(1.12, il - 1);
+// Armor's damage reduction is armor / (armor + armorK). armorK grows with the floor,
+// so armor from current-level gear always gives a similar ~25-45% reduction.
+const armorK = floor => 60 * itemScale(floor);
 
 // ---------------------------------------------------------------- Themes (change every 3 floors)
+// Each area has a palette for its painted textures (tex), a tint for the darkness,
+// a color-grade overlay and its own floating ambient particles.
 const THEMES = [
-  { name: 'Catacombs',      floor: '#3b3530', floor2: '#423b35', floor3: '#35302b', wallTop: '#5c534a', wallFace: '#2c2621', wallLine: '#1c1815', dark: 0.86, torch: '#ffb347' },
-  { name: 'Fungal Caverns', floor: '#2d3830', floor2: '#334036', floor3: '#28322b', wallTop: '#46594b', wallFace: '#1f2a22', wallLine: '#131a15', dark: 0.88, torch: '#9dff8a' },
-  { name: 'Frozen Depths',  floor: '#34404c', floor2: '#3b4855', floor3: '#2f3a45', wallTop: '#61798d', wallFace: '#27323d', wallLine: '#18202a', dark: 0.84, torch: '#8fd8ff' },
-  { name: 'Burning Hells',  floor: '#3e2420', floor2: '#472a24', floor3: '#361f1b', wallTop: '#6e3024', wallFace: '#2e1410', wallLine: '#1e0c09', dark: 0.85, torch: '#ff6a2a' },
+  {
+    key: 'catacombs', name: 'Catacombs', dark: 0.86, torch: '#ffb347', darkColor: [8, 5, 3], grade: 'rgba(255,170,90,0.10)', ambient: 'dust',
+    tex: { floor: [84, 74, 64], grout: [28, 23, 19], top: [62, 55, 48], brick: [92, 76, 62], mortar: [34, 27, 22], accent: [120, 100, 80] },
+  },
+  {
+    key: 'fungal', name: 'Fungal Caverns', dark: 0.88, torch: '#9dff8a', darkColor: [2, 8, 5], grade: 'rgba(90,255,140,0.08)', ambient: 'spores',
+    tex: { floor: [58, 70, 60], grout: [18, 24, 19], top: [48, 62, 52], brick: [62, 80, 66], mortar: [20, 28, 22], accent: [90, 150, 60] },
+  },
+  {
+    key: 'frozen', name: 'Frozen Depths', dark: 0.84, torch: '#8fd8ff', darkColor: [2, 6, 14], grade: 'rgba(140,200,255,0.10)', ambient: 'snow',
+    tex: { floor: [72, 88, 104], grout: [24, 32, 42], top: [86, 108, 128], brick: [84, 104, 124], mortar: [28, 36, 48], accent: [190, 230, 255] },
+  },
+  {
+    key: 'hell', name: 'Burning Hells', dark: 0.85, torch: '#ff6a2a', darkColor: [14, 2, 0], grade: 'rgba(255,90,40,0.10)', ambient: 'embers',
+    tex: { floor: [70, 40, 34], grout: [20, 8, 6], top: [74, 34, 26], brick: [96, 44, 34], mortar: [26, 10, 8], accent: [255, 110, 40] },
+  },
 ];
 
 // ---------------------------------------------------------------- Items
@@ -96,7 +117,7 @@ const ITEM_BASES = {
     { name: 'Dagger', type: 'dagger', icon: '🔪', dmg: 0.8, crit: 5 },
     { name: 'Axe', type: 'axe', icon: '🪓', dmg: 1.15 },
     { name: 'Mace', type: 'mace', icon: '🔨', dmg: 1.1 },
-    { name: 'Staff', type: 'staff', icon: '🪄', dmg: 0.6, spell: 1 },
+    { name: 'Staff', type: 'staff', icon: '🪄', dmg: 0.8, spell: 1 },
   ],
   offhand: [
     { name: 'Buckler', type: 'buckler', icon: '🛡️', armor: 0.7 },
@@ -136,7 +157,7 @@ const ITEM_BASES = {
     { name: 'Signet', type: 'ring', icon: '💍' },
   ],
 };
-const ARMOR_BASE = { offhand: [4, 2], helm: [3, 1.6], armor: [6, 3], gloves: [2, 1.1], boots: [2, 1.1] }; // [flat, per item level]
+const ARMOR_BASE = { offhand: 6, helm: 4, armor: 9, gloves: 3, boots: 3 }; // at item level 1, grows with itemScale
 const LEGACY_BASES = { Blade: 'Sword', Cleaver: 'Axe', Visor: 'Great Helm', Mail: 'Chainmail', Hauberk: 'Chainmail', Loop: 'Band' };
 
 function findBase(it) {
@@ -155,18 +176,18 @@ const RARITIES = {
 };
 
 const AFFIXES = {
-  str:       { label: 'Strength',       adj: 'Mighty',   roll: il => randi(1, 2 + Math.floor(il * 0.6)) },
-  int:       { label: 'Intellect',      adj: 'Wise',     roll: il => randi(1, 2 + Math.floor(il * 0.6)) },
-  vit:       { label: 'Vitality',       adj: 'Sturdy',   roll: il => randi(1, 2 + Math.floor(il * 0.6)) },
-  hp:        { label: 'Max Life',       adj: 'Vital',    roll: il => randi(5, 10 + il * 4) },
-  mp:        { label: 'Max Mana',       adj: 'Arcane',   roll: il => randi(4, 8 + il * 3) },
-  spell:     { label: '% Spell Damage', adj: 'Blazing',  roll: il => randi(4, 8 + Math.floor(il * 1.5)) },
-  crit:      { label: '% Crit Chance',  adj: 'Keen',     roll: il => randi(1, 3 + Math.floor(il / 3)) },
-  armor:     { label: 'Armor',          adj: 'Warded',   roll: il => randi(3, 6 + il * 2) },
-  regen:     { label: 'Life Regen /s',  adj: 'Mending',  roll: il => +rand(0.5, 1 + il * 0.25).toFixed(1) },
-  manaregen: { label: 'Mana Regen /s',  adj: 'Focused',  roll: il => +rand(0.5, 1 + il * 0.2).toFixed(1) },
+  str:       { label: 'Strength',       adj: 'Mighty',   roll: il => randi(1, 2 + Math.floor(il * 0.3)) },
+  int:       { label: 'Intellect',      adj: 'Wise',     roll: il => randi(1, 2 + Math.floor(il * 0.3)) },
+  vit:       { label: 'Vitality',       adj: 'Sturdy',   roll: il => randi(1, 2 + Math.floor(il * 0.3)) },
+  hp:        { label: 'Max Life',       adj: 'Vital',    roll: il => Math.round(randi(8, 16) * itemScale(il)) },
+  mp:        { label: 'Max Mana',       adj: 'Arcane',   roll: il => randi(4, 8 + il * 2) },
+  spell:     { label: '% Spell Damage', adj: 'Blazing',  roll: il => randi(3, 8 + Math.floor(il / 2)) },
+  crit:      { label: '% Crit Chance',  adj: 'Keen',     roll: il => randi(1, 2 + Math.floor(il / 4)) },
+  armor:     { label: 'Armor',          adj: 'Warded',   roll: il => Math.round(randi(2, 5) * itemScale(il)) },
+  regen:     { label: 'Life Regen /s',  adj: 'Mending',  roll: il => +(rand(0.4, 1.2) * itemScale(il)).toFixed(1) },
+  manaregen: { label: 'Mana Regen /s',  adj: 'Focused',  roll: il => +rand(0.2, 0.5 + il * 0.04).toFixed(1) },
   speed:     { label: '% Move Speed',   adj: 'Swift',    roll: () => randi(3, 8) },
-  aspd:      { label: '% Attack Speed', adj: 'Frenzied', roll: il => randi(4, 10 + Math.floor(il / 2)) },
+  aspd:      { label: '% Attack Speed', adj: 'Frenzied', roll: il => randi(3, 8 + Math.floor(il / 3)) },
 };
 const BASE_LABEL = { dmg: 'Weapon Damage', armor: 'Armor', spell: '% Spell Damage', crit: '% Crit Chance', mp: 'Max Mana', speed: '% Move Speed' };
 
@@ -188,7 +209,7 @@ function rollRarity(boost) {
     ['common', 60 - boost * 25],
     ['magic', 28 + boost * 5],
     ['rare', 10 + boost * 12],
-    ['legendary', 2 + boost * 4],
+    ['legendary', 1 + boost * 2.5],
   ]);
 }
 
@@ -196,24 +217,27 @@ let itemUid = Date.now();
 
 function rollAffix(key, ilvl, rarity) {
   let v = AFFIXES[key].roll(ilvl);
-  if (rarity === 'legendary') v = Number.isInteger(v) ? Math.round(v * 1.5) : +(v * 1.5).toFixed(1);
+  if (rarity === 'legendary') v = Number.isInteger(v) ? Math.round(v * 1.3) : +(v * 1.3).toFixed(1);
   return v;
 }
 
+// Weapons drive all damage, so they drop more often than any other slot.
+const SLOT_DROP_WEIGHTS = { weapon: 3, offhand: 1, helm: 1, armor: 1, gloves: 1, boots: 1, amulet: 1, ring: 1 };
+
 function generateItem(ilvl, boost = 0, slot = null) {
-  slot = slot || pick(SLOTS);
+  slot = slot || weightedPick(Object.entries(SLOT_DROP_WEIGHTS));
   let rarity = rollRarity(boost);
   if ((slot === 'ring' || slot === 'amulet') && rarity === 'common') rarity = 'magic';
   const R = RARITIES[rarity];
   const b = pick(ITEM_BASES[slot]);
   const q = () => rand(0.85, 1.15) * R.mult;
   const base = {};
-  if (slot === 'weapon') base.dmg = Math.max(2, Math.round((4 + ilvl * 1.8) * q() * b.dmg));
-  if (slot === 'weapon' && b.spell) base.spell = Math.round((8 + ilvl * 1.2) * R.mult);
-  if (slot === 'offhand' && b.spell) base.spell = Math.round((5 + ilvl) * R.mult);
+  if (slot === 'weapon') base.dmg = Math.max(2, Math.round(8 * itemScale(ilvl) * q() * b.dmg));
+  if (slot === 'weapon' && b.spell) base.spell = Math.round((15 + ilvl * 0.5) * R.mult);
+  if (slot === 'offhand' && b.spell) base.spell = Math.round((6 + ilvl * 0.4) * R.mult);
   if (b.crit) base.crit = b.crit;
-  if (b.armor && ARMOR_BASE[slot]) base.armor = Math.max(1, Math.round((ARMOR_BASE[slot][0] + ilvl * ARMOR_BASE[slot][1]) * q() * b.armor));
-  if (b.mp) base.mp = Math.round((8 + ilvl * 3) * b.mp * R.mult);
+  if (b.armor && ARMOR_BASE[slot]) base.armor = Math.max(1, Math.round(ARMOR_BASE[slot] * itemScale(ilvl) * q() * b.armor));
+  if (b.mp) base.mp = Math.round((10 + ilvl * 2) * b.mp * R.mult);
   if (b.speed) base.speed = 3;
 
   const keys = shuffle(Object.keys(AFFIXES)).slice(0, randi(R.affixes[0], R.affixes[1]));
@@ -232,7 +256,7 @@ function generateItem(ilvl, boost = 0, slot = null) {
 }
 
 function starterWeapon() {
-  return { uid: itemUid++, slot: 'weapon', rarity: 'common', name: 'Rusty Sword', baseName: 'Sword', ilvl: 1, base: { dmg: 6 }, affixes: {}, up: 0, value: 3 };
+  return { uid: itemUid++, slot: 'weapon', rarity: 'common', name: 'Rusty Sword', baseName: 'Sword', ilvl: 1, base: { dmg: 8 }, affixes: {}, up: 0, value: 3 };
 }
 
 // ---------------------------------------------------------------- Item upgrades (+1 .. +10 at the Forge)

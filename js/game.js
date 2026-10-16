@@ -14,6 +14,8 @@ const G = {
   texts: [],
   loot: [],
   chests: [],
+  props: [],    // breakable barrels, crates and urns
+  decals: [],   // blood, scorch and frost marks on the floor
   corpses: [],
   portal: null,
   flow: null,
@@ -73,17 +75,20 @@ function computeStats(p, equip = p.equip) {
     if (!it) continue;
     for (const [k, v] of Object.entries(itemStats(it))) s[k] += v;
   }
+  // Weapon damage drives both melee and spells; attributes are percentage bonuses on top.
   const might = 1 + upRank(p, 'might') * 0.04;
-  s.maxHp = Math.round((80 + s.vit * 10 + p.level * 6 + s.hp) * (1 + upRank(p, 'vitality') * 0.05));
-  s.maxMp = Math.round((40 + s.int * 5 + p.level * 3 + s.mp) * (1 + upRank(p, 'mana') * 0.05));
-  s.melee = ((s.dmg || 3) + s.str * 0.8) * might;
-  s.spellPower = (5 + s.int * 1.0 + p.level * 1.2) * (1 + s.spell / 100) * might;
-  s.critChance = Math.min(60, s.crit);
+  const weapon = s.dmg || 4;
+  const levelBonus = 1 + (p.level - 1) * 0.04; // leveling always adds damage, even with unlucky loot
+  s.maxHp = Math.round((100 + p.level * 10 + s.hp) * (1 + s.vit * 0.02) * (1 + upRank(p, 'vitality') * 0.05));
+  s.maxMp = Math.round((40 + p.level * 3 + s.mp) * (1 + s.int * 0.015) * (1 + upRank(p, 'mana') * 0.05));
+  s.melee = weapon * (1 + s.str * 0.015) * levelBonus * might;
+  s.spellPower = weapon * 0.8 * (1 + s.int * 0.015) * (1 + s.spell / 100) * levelBonus * might;
+  s.critChance = Math.min(50, s.crit);
   s.moveSpeed = 180 * (1 + Math.min(40, s.speed) / 100);
   s.atkSpeed = 1 + Math.min(60, s.aspd) / 100;
-  s.hpRegen = 0.5 + s.vit * 0.05 + s.regen;
-  s.mpRegen = 1.5 + s.int * 0.2 + s.manaregen;
-  s.dmgReduction = 1 - 100 / (100 + s.armor);
+  s.hpRegen = s.maxHp * 0.004 + s.regen;
+  s.mpRegen = 2 + s.int * 0.12 + p.level * 0.05 + s.manaregen;
+  s.dmgReduction = s.armor / (s.armor + armorK(p.floor || 1));
   return s;
 }
 
@@ -133,6 +138,7 @@ function playerFromSave(data) {
 
 function buildFloor() {
   const p = G.player;
+  recalcStats(p); // armor's effect depends on the floor
   const d = new Dungeon(p.floor);
   G.dungeon = d;
   G.enemies = [];
@@ -142,6 +148,7 @@ function buildFloor() {
   G.texts = [];
   G.loot = [];
   G.chests = [];
+  G.decals = [];
   G.corpses = [];
   G.flow = null;
   G.flowT = 0;
@@ -161,7 +168,8 @@ function buildFloor() {
     const packType = weightedPick(types);
     for (let i = 0; i < count; i++) {
       const pos = d.randomPointInRoom(room);
-      spawnEnemy(chance(0.65) ? packType : weightedPick(types), pos.x, pos.y, chance(0.08));
+      const eliteChance = Math.min(0.25, 0.08 + p.floor * 0.008); // more champions the deeper you go
+      spawnEnemy(chance(0.65) ? packType : weightedPick(types), pos.x, pos.y, chance(eliteChance));
     }
   }
   for (const room of d.rooms) {
@@ -169,6 +177,7 @@ function buildFloor() {
     const pos = d.randomPointInRoom(room, 2);
     G.chests.push({ isChest: true, x: pos.x, y: pos.y, open: false, t: 0, big: false });
   }
+  G.props = d.props;
   if (d.isBoss) {
     const b = spawnEnemy('brute', exit.x, exit.y, false);
     b.hp = b.maxHp = Math.round(b.maxHp * (1 + (p.floor / 5 - 1) * 0.5));
@@ -284,6 +293,7 @@ const CAST = {
       hits++;
     }
     G.effects.push({ type: 'slash', x: p.x, y: p.y, ang, arc, range, t: 0, max: 0.18 });
+    breakProps(p.x, p.y, range, ang, arc);
     if (hits) shake(2);
   },
 
@@ -308,6 +318,8 @@ const CAST = {
       dealDamage(e, p.stats.spellPower * sk.mult(l) * rand(0.9, 1.1) * (crit ? 1.75 : 1), 'frostnova', { crit, color: '#8fd8ff' });
     }
     G.effects.push({ type: 'nova', x: p.x, y: p.y, radius, t: 0, max: 0.4 });
+    addDecal('frost', p.x, p.y, radius / 22);
+    breakProps(p.x, p.y, radius);
     spawnParticles(p.x, p.y, 40, '#bfe9ff', radius * 2.2, 3, 0.5);
     shake(3);
   },
@@ -325,7 +337,8 @@ const CAST = {
       hitSet.add(target);
       points.push({ x: target.x, y: target.y - 6 });
       const crit = rollCrit();
-      dealDamage(target, p.stats.spellPower * sk.mult(l) * rand(0.85, 1.15) * (crit ? 1.75 : 1), 'chain', { crit, color: '#cfe8ff' });
+      const falloff = Math.pow(sk.falloff, i);
+      dealDamage(target, p.stats.spellPower * sk.mult(l) * falloff * rand(0.85, 1.15) * (crit ? 1.75 : 1), 'chain', { crit, color: '#cfe8ff' });
       spawnParticles(target.x, target.y, 8, '#cfe8ff', 160, 2, 0.3);
       from = target;
       target = findTarget(from, 230, hitSet);
@@ -341,6 +354,7 @@ const CAST = {
 
 function whirlwindTick() {
   const p = G.player, sk = SKILLS.whirlwind, l = skillLevel('whirlwind');
+  breakProps(p.x, p.y, sk.radius(l));
   for (const e of G.enemies) {
     if (e.dead || dist(p, e) > sk.radius(l) + e.r) continue;
     const crit = rollCrit();
@@ -357,6 +371,8 @@ function explodeFireball(pr) {
     dealDamage(e, p.stats.spellPower * sk.mult(pr.level) * rand(0.9, 1.1) * (crit ? 1.75 : 1), 'fireball', { crit, color: '#ffb35c', knock: 6, from: pr });
   }
   G.effects.push({ type: 'explosion', x: pr.x, y: pr.y, radius, t: 0, max: 0.35 });
+  addDecal('scorch', pr.x, pr.y, radius / 26);
+  breakProps(pr.x, pr.y, radius);
   spawnParticles(pr.x, pr.y, 26, '#ff8a2a', 260, 4, 0.5);
   spawnParticles(pr.x, pr.y, 10, '#ffe08a', 140, 3, 0.4);
   shake(3);
@@ -371,6 +387,7 @@ function dealDamage(e, amount, skillId, opts = {}) {
   e.hitT = 0.12;
   if (!e.aggro) { e.aggro = true; alertPack(e); }
   floatText(e.x, e.y - e.r - 14, amount, opts.crit ? '#ffd23f' : (opts.color || '#ffffff'), opts.crit ? 22 : 16);
+  hitSparks(e, skillId);
   if (opts.knock && !e.boss) {
     const src = opts.from || G.player;
     const a = Math.atan2(e.y - src.y, e.x - src.x);
@@ -389,6 +406,7 @@ function killEnemy(e, skillId) {
   const colors = { skeleton: '#e8e2cc', zombie: '#6f9a4f', bat: '#8a3fae', cultist: '#c23030', brute: '#a02818' };
   spawnParticles(e.x, e.y, e.boss ? 80 : 18, colors[e.type] || '#ccc', e.boss ? 320 : 180, e.boss ? 5 : 3, 0.7);
   G.corpses.push({ e, t: 0, dir: chance(0.5) ? 1 : -1 });
+  if (e.type !== 'skeleton') addDecal('blood', e.x + rand(-6, 6), e.y + rand(-4, 6), e.boss ? 2.4 : 1.2);
   if (G.corpses.length > 30) G.corpses.shift();
   gainXp(e.xp);
   gainSkillXp(skillId, 3);
@@ -495,7 +513,8 @@ function dropLoot(e) {
   if (chance(e.boss ? 1 : e.elite ? 0.25 : 0.045)) drops.push({ kind: 'potion' });
   if (chance(e.boss ? 1 : e.elite ? 0.5 : 0.1)) drops.push({ kind: 'mat', mat: 'scrap', amount: e.boss ? randi(4, 8) : e.elite ? randi(2, 4) : randi(1, 2) });
   if (e.boss) {
-    for (let i = 0; i < 3; i++) drops.push({ kind: 'item', item: generateItem(f + 1, lootBoost(2)) });
+    drops.push({ kind: 'item', item: generateItem(f + 1, lootBoost(2), 'weapon') }); // bosses always drop a weapon
+    for (let i = 0; i < 2; i++) drops.push({ kind: 'item', item: generateItem(f + 1, lootBoost(2)) });
     drops.push({ kind: 'mat', mat: 'dust', amount: randi(2, 4) });
   } else if (e.elite) {
     drops.push({ kind: 'item', item: generateItem(f, lootBoost(1)) });
@@ -530,6 +549,57 @@ function openChest(ch) {
   shake(2);
 }
 
+// ---------------------------------------------------------------- Props and decals
+
+function pushOutOfProps(a) {
+  for (const pr of G.props) {
+    const dx = a.x - pr.x, dy = a.y - pr.y, min = a.r + pr.r;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= min * min || d2 < 0.01) continue;
+    const dd = Math.sqrt(d2);
+    a.x += dx / dd * (min - dd);
+    a.y += dy / dd * (min - dd);
+  }
+}
+
+const PROP_DEBRIS = { barrel: ['#8a5a30', '#5d636b'], crate: ['#9a7040', '#5a3a1e'], urn: ['#a8683a', '#6a3a20'] };
+
+// Smash props inside a circle (or, with ang/arc, inside a cone).
+function breakProps(x, y, radius, ang = null, arc = 0) {
+  for (const pr of G.props) {
+    if (pr.broken) continue;
+    const d = Math.hypot(pr.x - x, pr.y - y);
+    if (d > radius + pr.r) continue;
+    if (ang !== null && Math.abs(angDiff(ang, Math.atan2(pr.y - y, pr.x - x))) > arc / 2) continue;
+    pr.broken = true;
+    const [c1, c2] = PROP_DEBRIS[pr.type];
+    spawnParticles(pr.x, pr.y - 10, 14, c1, 170, 4, 0.6);
+    spawnParticles(pr.x, pr.y - 10, 6, c2, 140, 3, 0.5);
+    addDecal('rubble', pr.x, pr.y + 4, 0.8);
+    const f = G.player.floor;
+    if (chance(0.25)) spawnLoot(pr.x, pr.y, { kind: 'gold', amount: goldAmount(randi(2, 6) * (1 + f * 0.5)) }, 1);
+    else if (chance(0.08)) spawnLoot(pr.x, pr.y, { kind: 'potion' }, 1);
+    else if (chance(0.1)) spawnLoot(pr.x, pr.y, { kind: 'mat', mat: 'scrap', amount: 1 }, 1);
+  }
+  G.props = G.props.filter(pr => !pr.broken);
+}
+
+function addDecal(type, x, y, scale = 1) {
+  G.decals.push({ type, x, y, scale, rot: rand(0, TAU), t: 0, life: type === 'rubble' ? 30 : 14 });
+  if (G.decals.length > 80) G.decals.shift();
+}
+
+const BLOODY = { zombie: 1, bat: 1, cultist: 1, brute: 1 };
+
+function hitSparks(e, skillId) {
+  const melee = skillId === 'slash' || skillId === 'whirlwind';
+  if (melee) spawnParticles(e.x, e.y - 14, 5, e.type === 'skeleton' ? '#e8dcc0' : '#ffe8a0', 180, 2.5, 0.25);
+  if (BLOODY[e.type]) {
+    spawnParticles(e.x, e.y - 14, 4, '#a01010', 120, 3, 0.4);
+    if (chance(0.3)) addDecal('blood', e.x + rand(-10, 10), e.y + rand(-4, 8), rand(0.5, 0.9));
+  }
+}
+
 function updateChests(dt) {
   const p = G.player;
   for (const ch of G.chests) {
@@ -538,6 +608,8 @@ function updateChests(dt) {
   }
   for (const cp of G.corpses) cp.t += dt;
   G.corpses = G.corpses.filter(cp => cp.t < 10);
+  for (const dc of G.decals) dc.t += dt;
+  G.decals = G.decals.filter(dc => dc.t < dc.life);
 }
 
 function updateLoot(dt) {
@@ -700,6 +772,7 @@ function updateProjectiles(dt) {
     pr.x += pr.vx * dt;
     pr.y += pr.vy * dt;
     pr.life -= dt;
+    if (pr.kind === 'fireball') { (pr.trail || (pr.trail = [])).push({ x: pr.x, y: pr.y }); if (pr.trail.length > 10) pr.trail.shift(); }
     let hit = d.wallAtPx(pr.x, pr.y) || pr.life <= 0;
     if (!hit && pr.owner === 'player') {
       for (const e of G.enemies) if (!e.dead && Math.hypot(e.x - pr.x, e.y - pr.y) < e.r + pr.r) { hit = true; break; }
@@ -770,6 +843,8 @@ function update(dt) {
   if (p.moving) {
     const sp = s.moveSpeed * (p.whirlT > 0 ? 1.15 : 1) * Math.min(1, len * 1.25);
     moveEntity(d, p, mv.x / len * sp * dt, mv.y / len * sp * dt);
+    pushOutOfProps(p);
+    collideCircle(d, p);
     if (p.swingT <= 0 && p.castT <= 0) p.facing = Math.atan2(mv.y, mv.x);
   }
 

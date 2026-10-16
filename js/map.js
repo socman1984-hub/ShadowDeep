@@ -80,9 +80,40 @@ class Dungeon {
     }
     this.exit = far;
     this.seen = new Uint8Array(w * h);
+    this.addPillars();
     this.computeEdges();
+    this.computeTileLook();
     this.decorate();
     return true;
+  }
+
+  // Stone columns in the corners of big rooms. Only placed where every neighbor is
+  // open floor, so they can never cut a path.
+  addPillars() {
+    this.pillar = new Uint8Array(this.w * this.h);
+    for (const r of this.rooms) {
+      if (r.w < 9 || r.h < 8) continue;
+      for (const [x, y] of [[r.x + 2, r.y + 2], [r.x + r.w - 3, r.y + 2], [r.x + 2, r.y + r.h - 3], [r.x + r.w - 3, r.y + r.h - 3]]) {
+        let open = true;
+        for (let dy = -1; dy <= 1 && open; dy++) for (let dx = -1; dx <= 1; dx++) if (this.isWall(x + dx, y + dy)) { open = false; break; }
+        if (!open) continue;
+        this.grid[this.idx(x, y)] = 1;
+        this.pillar[this.idx(x, y)] = 1;
+      }
+    }
+  }
+
+  // Per-tile texture variant and wall-shadow mask (1 = wall north, 2 = east, 4 = south, 8 = west).
+  computeTileLook() {
+    const n = this.w * this.h;
+    this.fvar = new Uint8Array(n);
+    this.ao = new Uint8Array(n);
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+      const i = this.idx(x, y);
+      this.fvar[i] = Math.floor(hash2(x, y) * 1000) % FLOOR_VARIANTS;
+      if (this.isWall(x, y) && !this.pillar[i]) continue;
+      this.ao[i] = (this.isWall(x, y - 1) ? 1 : 0) | (this.isWall(x + 1, y) ? 2 : 0) | (this.isWall(x, y + 1) ? 4 : 0) | (this.isWall(x - 1, y) ? 8 : 0);
+    }
   }
 
   // Wall tiles touching a floor tile are the only ones worth drawing.
@@ -101,13 +132,37 @@ class Dungeon {
   decorate() {
     this.torches = [];
     this.decor = [];
+    this.wallDeco = [];
+    this.props = [];
+    const glowType = { catacombs: 'candles', fungal: 'mushrooms', frozen: 'crystals' }[this.theme.key];
     for (let y = 1; y < this.h - 1; y++) for (let x = 1; x < this.w - 1; x++) {
-      if (this.isWall(x, y) && !this.isWall(x, y + 1) && chance(0.08)) {
-        if (!this.torches.some(t => Math.abs(t.tx - x) < 3 && t.ty === y)) {
-          this.torches.push({ tx: x, ty: y, x: x * TILE + TILE / 2, y: y * TILE + TILE * 0.62, seed: Math.random() * 10 });
+      const i = this.idx(x, y);
+      const face = this.isWall(x, y) && !this.pillar[i] && !this.isWall(x, y + 1);
+      if (face && chance(0.08) && !this.torches.some(t => Math.abs(t.tx - x) < 3 && t.ty === y)) {
+        this.torches.push({ tx: x, ty: y, x: x * TILE + TILE / 2, y: y * TILE + TILE * 0.62, seed: Math.random() * 10 });
+      } else if (face && chance(0.1)) {
+        this.wallDeco.push({ x: x * TILE + TILE / 2, y: y * TILE + TILE * (1 - FACE_H) + 3, type: chance(0.55) ? 'banner' : 'chain' });
+      } else if (!this.isWall(x, y)) {
+        const nearWall = this.ao[i] !== 0;
+        if (glowType && nearWall && chance(0.05)) {
+          this.decor.push({ x: x * TILE + rand(12, TILE - 12), y: y * TILE + rand(12, TILE - 12), type: glowType, rot: 0, glow: true });
+        } else if (chance(0.03)) {
+          this.decor.push({ x: x * TILE + rand(8, TILE - 8), y: y * TILE + rand(8, TILE - 8), type: pick(['bones', 'rubble', 'skull', 'blood']), rot: rand(0, TAU) });
         }
-      } else if (!this.isWall(x, y) && chance(0.035)) {
-        this.decor.push({ x: x * TILE + rand(8, TILE - 8), y: y * TILE + rand(8, TILE - 8), type: pick(['bones', 'rubble', 'skull', 'crack', 'blood']), rot: rand(0, TAU) });
+      }
+    }
+    // Breakable barrels, crates and urns along the room walls.
+    const types = this.theme.key === 'hell' || this.theme.key === 'catacombs' ? ['urn', 'urn', 'barrel', 'crate'] : ['barrel', 'crate', 'urn'];
+    for (const r of this.rooms) {
+      if (r === this.start) continue;
+      const n = randi(0, 3);
+      for (let k = 0; k < n; k++) {
+        // Along the north wall only, and never beside a corridor opening.
+        const tx = randi(r.x + 1, r.x + r.w - 2), ty = r.y;
+        if (this.isWall(tx, ty) || !this.isWall(tx - 1, ty - 1) || !this.isWall(tx, ty - 1) || !this.isWall(tx + 1, ty - 1)) continue;
+        const x = (tx + 0.5) * TILE + rand(-6, 6), y = (ty + 0.5) * TILE + rand(-4, 6);
+        if (this.props.some(pr => Math.hypot(pr.x - x, pr.y - y) < 30)) continue;
+        this.props.push({ isProp: true, type: pick(types), x, y, r: 12 });
       }
     }
   }
@@ -150,10 +205,10 @@ class Dungeon {
   }
 
   randomPointInRoom(room, margin = 1) {
-    return {
-      x: (randi(room.x + margin, room.x + room.w - 1 - margin) + 0.5) * TILE,
-      y: (randi(room.y + margin, room.y + room.h - 1 - margin) + 0.5) * TILE,
-    };
+    for (let tries = 0; ; tries++) {
+      const tx = randi(room.x + margin, room.x + room.w - 1 - margin), ty = randi(room.y + margin, room.y + room.h - 1 - margin);
+      if (!this.isWall(tx, ty) || tries > 30) return { x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE };
+    }
   }
 
   reveal(px, py, radius) {

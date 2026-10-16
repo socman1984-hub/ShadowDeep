@@ -38,6 +38,7 @@ Running games check `js/version.js` every 5 minutes, and whenever the player ret
 | `js/game.js` | Game state, combat, progression, loot, saving |
 | `js/map.js` | Dungeon generation, collision, pathfinding |
 | `js/characters.js` | Procedural character art and gear visuals |
+| `js/textures.js` | Painted floor, wall, pillar, prop and decal textures for each area |
 | `js/render.js` | World rendering, effects, lighting |
 | `js/ui.js` | HUD and menus (Hero, Skills, Gear, Forge, Upgrades) |
 | `js/input.js` | Touch joystick, buttons, keyboard |

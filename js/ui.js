@@ -214,9 +214,9 @@ const UI = {
       <div class="cols">
         <div class="col">
           <h3>Attributes ${p.points ? `<span class="pts">${p.points} points to spend</span>` : ''}</h3>
-          ${attr('str', 'Strength', '+0.8 weapon damage')}
-          ${attr('int', 'Intellect', '+1 spell power, +5 mana')}
-          ${attr('vit', 'Vitality', '+10 life, +life regen')}
+          ${attr('str', 'Strength', '+1.5% weapon damage per point')}
+          ${attr('int', 'Intellect', '+1.5% spell power and mana per point')}
+          ${attr('vit', 'Vitality', '+2% life per point')}
         </div>
         <div class="col">
           <h3>Stats</h3>
