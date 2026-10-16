@@ -5,11 +5,59 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const lightCanvas = document.createElement('canvas');
 const lctx = lightCanvas.getContext('2d');
-const LIGHT_SCALE = 0.5; // lighting is rendered at half resolution for speed
-let DPR = 1, VW = 0, VH = 0, ZOOM = 1;
+let DPR = 1, VW = 0, VH = 0, ZOOM = 1, LIGHT_SCALE = 0.5;
+
+// Graphics quality. Phones heat up from drawing too many frames at too many pixels,
+// so the default caps at 60 fps and 1.5x pixel density.
+const QUALITY = {
+  high:     { label: 'High',          fps: 60, dpr: 2,   lightScale: 0.5,  grade: true,  ambient: 46, sparks: true },
+  balanced: { label: 'Balanced',      fps: 60, dpr: 1.5, lightScale: 0.4,  grade: false, ambient: 28, sparks: true },
+  saver:    { label: 'Battery saver', fps: 30, dpr: 1,   lightScale: 0.33, grade: false, ambient: 0,  sparks: false },
+};
+const LS_QUALITY = 'shadowdeep_quality';
+let qualityName = (() => { try { return localStorage.getItem(LS_QUALITY); } catch (e) { return null; } })();
+if (!QUALITY[qualityName]) qualityName = 'balanced';
+let Q = QUALITY[qualityName];
+
+function setQuality(name) {
+  if (!QUALITY[name]) return;
+  qualityName = name;
+  Q = QUALITY[name];
+  try { localStorage.setItem(LS_QUALITY, name); } catch (e) { /* storage unavailable */ }
+  resizeCanvas();
+}
+
+// Pre-painted sprites, so lights and glows don't build gradients every frame.
+const LIGHT_STAMP = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(0,0,0,1)');
+  gr.addColorStop(0.6, 'rgba(0,0,0,0.55)');
+  gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 128, 128);
+  return c;
+})();
+const GLOW_SPRITES = {};
+function glowSprite(color) {
+  if (GLOW_SPRITES[color]) return GLOW_SPRITES[color];
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, color + '55');
+  gr.addColorStop(1, color + '00');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  return (GLOW_SPRITES[color] = c);
+}
+const vignetteCanvas = document.createElement('canvas');
 
 function resizeCanvas() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(Q.dpr, window.devicePixelRatio || 1);
+  LIGHT_SCALE = Q.lightScale;
   VW = window.innerWidth;
   VH = window.innerHeight;
   canvas.width = Math.floor(VW * DPR);
@@ -20,6 +68,16 @@ function resizeCanvas() {
   lightCanvas.height = Math.ceil(VH * LIGHT_SCALE);
   // Show roughly 8.5 tiles across the short side of the screen.
   ZOOM = clamp(Math.min(VW, VH) / (TILE * 8.5), 0.55, 1.5);
+  // The screen-edge vignette is painted once here and merged into the lighting layer.
+  vignetteCanvas.width = lightCanvas.width;
+  vignetteCanvas.height = lightCanvas.height;
+  const vg = vignetteCanvas.getContext('2d'), w = vignetteCanvas.width, h = vignetteCanvas.height;
+  const gr = vg.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.45, w / 2, h / 2, Math.max(w, h) * 0.72);
+  gr.addColorStop(0, 'rgba(0,0,0,0)');
+  gr.addColorStop(1, 'rgba(0,0,0,0.55)');
+  vg.fillStyle = gr;
+  vg.fillRect(0, 0, w, h);
+  if (typeof G !== 'undefined') G.dirty = true;
 }
 
 function circle(x, y, r, fill) {
@@ -116,15 +174,12 @@ function render() {
 
   // ---- screen-space color grade and vignettes
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.globalCompositeOperation = 'soft-light';
-  ctx.fillStyle = th.grade;
-  ctx.fillRect(0, 0, VW, VH);
-  ctx.globalCompositeOperation = 'source-over';
-  const vg = ctx.createRadialGradient(VW / 2, VH / 2, Math.min(VW, VH) * 0.45, VW / 2, VH / 2, Math.max(VW, VH) * 0.72);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.55)');
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, VW, VH);
+  if (Q.grade) {
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.fillStyle = th.grade;
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.globalCompositeOperation = 'source-over';
+  }
   const lowHp = p.hp / p.stats.maxHp < 0.3;
   if (p.hurtT > 0 || lowHp) {
     const a = Math.max(p.hurtT / 0.3 * 0.45, lowHp ? 0.25 + Math.sin(G.time * 5) * 0.12 : 0);
@@ -230,11 +285,7 @@ function drawTorchFlame(t, th) {
   const time = G.time + t.seed;
   const fl = Math.sin(time * 13) * 0.12 + Math.sin(time * 7.3) * 0.08;
   const x = t.x + Math.sin(time * 9) * 0.6, y = t.y - 5;
-  const g = ctx.createRadialGradient(x, y - 4, 0, x, y - 4, 60);
-  g.addColorStop(0, th.torch + '55');
-  g.addColorStop(1, th.torch + '00');
-  ctx.fillStyle = g;
-  ctx.fillRect(x - 60, y - 64, 120, 120);
+  ctx.drawImage(glowSprite(th.torch), x - 60, y - 64, 120, 120);
   for (const [sc, col] of [[1, th.torch + 'cc'], [0.68, '#ffcf70'], [0.38, '#fff8e0']]) {
     const h = 15 * sc * (1 + fl), w = 5 * sc;
     ctx.fillStyle = col;
@@ -244,19 +295,18 @@ function drawTorchFlame(t, th) {
     ctx.quadraticCurveTo(x - w * 1.5, y - h * 0.25, x, y - h);
     ctx.fill();
   }
-  if (chance(0.04)) G.particles.push({ x, y: y - 10, vx: rand(-15, 15), vy: rand(-70, -40), life: 0.7, max: 0.7, color: '#ffb050', size: 1.6 });
+  if (Q.sparks && chance(0.04)) G.particles.push({ x, y: y - 10, vx: rand(-15, 15), vy: rand(-70, -40), life: 0.7, max: 0.7, color: '#ffb050', size: 1.6 });
 }
 
 // ---------------------------------------------------------------- Ambient particles (dust, spores, snow, embers)
 
 const AMBIENT = [];
-const AMBIENT_COUNT = 46;
-
 function drawAmbient(th, camX, camY, vw, vh) {
   const kind = th.ambient;
+  if (AMBIENT.length > Q.ambient) AMBIENT.length = Q.ambient;
   if (AMBIENT.kind !== kind) { AMBIENT.length = 0; AMBIENT.kind = kind; }
   const dt = 1 / 60;
-  while (AMBIENT.length < AMBIENT_COUNT) {
+  while (AMBIENT.length < Q.ambient) {
     AMBIENT.push({ x: camX + Math.random() * vw, y: camY + Math.random() * vh, ph: Math.random() * TAU, s: 0.6 + Math.random() * 1.2 });
   }
   ctx.globalCompositeOperation = kind === 'snow' || kind === 'dust' ? 'source-over' : 'lighter';
@@ -689,12 +739,9 @@ function drawLighting(d, th, camX, camY, inView) {
 
   const light = (wx, wy, r, intensity) => {
     const x = (wx - camX) * s, y = (wy - camY) * s, rr = r * s;
-    const g = lctx.createRadialGradient(x, y, 0, x, y, rr);
-    g.addColorStop(0, `rgba(0,0,0,${intensity})`);
-    g.addColorStop(0.6, `rgba(0,0,0,${intensity * 0.55})`);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    lctx.fillStyle = g;
-    lctx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+    if (x + rr < 0 || y + rr < 0 || x - rr > lw || y - rr > lh) return;
+    lctx.globalAlpha = Math.max(0, Math.min(1, intensity));
+    lctx.drawImage(LIGHT_STAMP, x - rr, y - rr, rr * 2, rr * 2);
   };
 
   const p = G.player;
@@ -712,6 +759,9 @@ function drawLighting(d, th, camX, camY, inView) {
   if (G.portal.active && inView(G.portal.x, G.portal.y, 200)) light(G.portal.x, G.portal.y, 190, 0.9);
   for (const l of G.loot) if (l.kind === 'item' && l.item.rarity !== 'common' && inView(l.x, l.y)) light(l.x, l.y, 70, 0.6);
   for (const ch of G.chests) if (inView(ch.x, ch.y)) light(ch.x, ch.y, ch.open ? 110 : 60, ch.open ? 0.8 : 0.35);
+  lctx.globalAlpha = 1;
+  lctx.globalCompositeOperation = 'source-over';
+  lctx.drawImage(vignetteCanvas, 0, 0);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(lightCanvas, 0, 0, canvas.width, canvas.height);

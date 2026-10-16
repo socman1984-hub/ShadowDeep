@@ -175,6 +175,7 @@ const HELP_SECTIONS = [
   ['⭐ Upgrades', 'Permanent boosts bought with gold: more life, mana and damage, stronger potions, a bigger bag, more gold found and better loot.'],
   ['🌀 Floors & Bosses', 'Clear your way to the purple portal to go deeper. Every 3 floors brings a new area, and every 5th floor has a boss guarding the portal. Treasure chests open when you walk up to them.'],
   ['💾 Saving', 'The game saves automatically. If you die, you lose 10% of your gold and restart the floor.'],
+  ['🔋 Battery & heat', 'If your phone gets warm, choose <b>Battery saver</b> under Graphics at the top of this page. It runs at 30 fps with lighter effects. Balanced is the default.'],
 ];
 
 const Help = {
@@ -188,6 +189,15 @@ const Help = {
         <div><b class="gameName">Shadowdeep</b> <span class="ver">v${GAME_VERSION}</span><div class="dim small">${this.status}</div></div>
         <div class="helpBtns">${upd}<button data-action="replayTutorial">Replay tutorial</button></div>
       </div>
+      <h3>Graphics</h3>
+      <div class="quality">
+        ${Object.entries(QUALITY).map(([k, q]) => `<button class="${k === qualityName ? 'primary' : ''}" data-action="quality" data-key="${k}">${q.label}</button>`).join('')}
+      </div>
+      <p class="hint">${{
+        high: 'Sharpest picture and every effect. Uses the most battery, and phones may get warm.',
+        balanced: 'Recommended: smooth 60 fps at a lighter load.',
+        saver: '30 fps at a lower resolution with fewer effects. Coolest and longest battery life.',
+      }[qualityName]}</p>
       <h3>How to play</h3>
       <div class="howto">${sections}</div>
       <h3>Release notes</h3>

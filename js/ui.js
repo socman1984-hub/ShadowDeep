@@ -175,6 +175,7 @@ const UI = {
   closePanel() {
     if (G.state !== 'paused') return;
     this.els.panel.classList.add('hidden');
+    G.dirty = true;
     G.state = 'play';
     saveGame();
   },
@@ -499,6 +500,7 @@ const UI = {
     if (!b || b.disabled) return;
     const p = G.player, act = b.dataset.action, key = b.dataset.key;
     if (act === 'checkUpdate' || act === 'doUpdate' || act === 'replayTutorial') { Help.onAction(act); return; }
+    if (act === 'quality') { setQuality(key); this.toast(`Graphics: ${QUALITY[key].label}`); this.renderPanel(); return; }
     switch (act) {
       case 'attr':
         if (p.points > 0) {

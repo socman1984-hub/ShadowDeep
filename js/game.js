@@ -27,6 +27,7 @@ const G = {
   autoTarget: null,
   msgT: 0,
   modal: false, // a pop-up (tutorial, update prompt) is open and the game is paused
+  dirty: true,  // redraw once even while paused (new floor, resize, quality change)
 };
 
 // ---------------------------------------------------------------- Player
@@ -139,6 +140,7 @@ function playerFromSave(data) {
 function buildFloor() {
   const p = G.player;
   recalcStats(p); // armor's effect depends on the floor
+  G.dirty = true;
   const d = new Dungeon(p.floor);
   G.dungeon = d;
   G.enemies = [];
@@ -902,13 +904,17 @@ function startGame(fromSave) {
 }
 
 let lastFrame = performance.now();
+// Frames are capped by the quality setting (120 Hz phones would otherwise draw twice as
+// often), and the world is only redrawn while the game is actually running.
 function frame(now) {
+  requestAnimationFrame(frame);
+  if (now - lastFrame < 1000 / Q.fps - 3) return;
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
-  if (G.state === 'play' && !G.modal) update(dt);
-  if (G.dungeon) render();
+  const active = G.state === 'play' && !G.modal;
+  if (active) update(dt);
+  if (G.dungeon && (active || G.dirty)) { render(); G.dirty = false; }
   if (G.player) UI.update();
-  requestAnimationFrame(frame);
 }
 
 function boot() {

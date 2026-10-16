@@ -310,3 +310,6 @@ button.big.small { min-width: 180px; padding: 8px 18px; font-size: 15px; }
 .act .ic { filter: drop-shadow(0 2px 2px rgba(0,0,0,.8)); }
 .act.down { border-color: #ffd84a; box-shadow: 0 0 16px rgba(255,216,74,.6), inset 0 -4px 8px rgba(0,0,0,.6); }
 .act.potion { border-color: #a83a48; }
+.quality { display: flex; gap: 6px; flex-wrap: wrap; }
+.quality button { flex: 1; min-width: 110px; min-height: 44px; font-size: 14px; border-radius: 6px; background: #2a1f15; border: 1px solid #7a6040; }
+.quality button.primary { background: #2f5a24; border-color: #5dff7a; font-weight: bold; }

@@ -4,9 +4,19 @@
 //   2. add an entry at the top of RELEASE_NOTES
 // Running games poll this file and offer a reload when GAME_VERSION changes.
 
-const GAME_VERSION = '1.4.0';
+const GAME_VERSION = '1.4.1';
 
 const RELEASE_NOTES = [
+  {
+    version: '1.4.1',
+    date: '2026-10-16',
+    notes: [
+      'Phones stay much cooler: the game now runs at a steady 60 fps instead of matching 120 Hz screens, and draws fewer pixels.',
+      'Nothing is redrawn while a menu or pop-up is open.',
+      'New Graphics setting in ❓ Help: High, Balanced (default) or Battery saver (30 fps, lighter effects).',
+      'Lighting and glow effects are now pre-drawn, so each frame needs less work.',
+    ],
+  },
   {
     version: '1.4.0',
     date: '2026-10-15',
